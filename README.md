@@ -18,11 +18,12 @@
 
  **g++  cc_project.cpp**
  
- **_Run the compiled program in 3 terminals on Linux:_**
+ **_Run the compiled program in 3 terminals on Linux: using_**
 
  **./a.out**
 
  **_Enter the port to listen on and the number of other peers in the network, along with their port numbers_**
+ **_Please review the output file for further details_**
 
 
  
