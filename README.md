@@ -14,7 +14,7 @@
 2.After receiving release message, remove the corresponding request from its own request queue.
 
 
-**_Compile the C++ code using g++_**
+**_Compile the C++ code using_**
 
  **g++  cc_project.cpp**
  
