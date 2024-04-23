@@ -23,7 +23,8 @@
  **./a.out**
 
  **_Enter the port to listen on and the number of other peers in the network, along with their port numbers_**
- **_Please review the output file for further details_**
+ 
+ **_Please review the output file for more details_**
 
 
  
