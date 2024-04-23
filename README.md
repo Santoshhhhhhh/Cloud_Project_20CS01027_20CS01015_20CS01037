@@ -1,3 +1,6 @@
+Y.Santosh Reddy 20CS01027
+M.Tharun Thej 20CS01037
+C.Muni Siva charan 20CS01015
 
 **Lamoprts mutual exclusion Algorithm**
 
