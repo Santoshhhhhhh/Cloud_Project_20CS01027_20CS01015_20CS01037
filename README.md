@@ -1,5 +1,5 @@
 
-**Algorithm**
+**Lamoprts mutual exclusion Algorithm**
 
 **Requesting process**
 1.	Pushing its request in its own queue (ordered by time stamps)
