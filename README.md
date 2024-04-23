@@ -1,7 +1,7 @@
 
 **Lamoprts mutual exclusion Algorithm**
 
-##**Requesting process**
+**Requesting process**
 1.	Pushing its request in its own queue (ordered by time stamps)
 2.	Sending a request to every node.
 3.	Waiting for replies from all other nodes.
