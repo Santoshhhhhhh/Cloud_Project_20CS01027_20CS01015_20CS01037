@@ -3,14 +3,33 @@
 #include <sys/socket.h>
 using namespace std;
 
+/*
+typedef std::chrono::seconds TenSeconds;
+const TenSeconds CC_time = 10s; // amount of time a device will spent in critical section
+// change the above to increase or decrease the time spent in CS.
+*/
+
 typedef std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>, std::greater<std::pair<int, int>>> MinPriorityQueue;
+
 int device_port;
-MinPriorityQueue pq;
 vector<int> peer_ports;
 int no_of_replies = 0;
 
+// format of message exchanged between devices  [ type  timestamp port ]
+// r for reply q for request  o for release
+
 class Device
 {
+private:
+  MinPriorityQueue pq;       // Priority queue to manage critical section requests
+  int sockfd, newsockfd;
+  socklen_t clilen;
+  char buffer[256];
+  struct sockaddr_in serv_addr, cli_addr;
+  atomic<int> timestamp; 
+  int current_process_index;
+  vector<thread> threads;    // Vector to hold threads for listening, sending requests, and handling critical section
+
 public:
   Device(int port, int adj_devices, int cprocess_index)
   {
@@ -18,7 +37,7 @@ public:
     sockfd = socket(AF_INET, SOCK_STREAM, 0); 
     if (sockfd < 0)
     {
-      cerr << "ERROR opening socket\n";
+      cerr << "ERROR in opening socket\n";
       exit(1);
     }
     current_process_index = cprocess_index;
@@ -27,7 +46,6 @@ public:
       timestamp = 0;
     }
   
-
     bzero((char *)&serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
@@ -39,16 +57,20 @@ public:
       exit(1);
     }
   }
-  bool EnterCritical_section()
+
+// Start the device
+  void start()
   {
-    if (no_of_replies == peer_ports.size() - 1 && pq.top().second == device_port)
-      return true;
-    return false;
+    beginListening();       // Start listening for incoming connections
+    triggerEvent();         // Start triggering events (e.g., sending requests)
+    syncThreads();          // Synchronize threads
   }
+
+  
   void static ExecuteCS()
   {
     cout << "Entered into CRITICAL SECTION!" << endl;
-    usleep(10000000); 
+    usleep(40000000); 
     for (int port : peer_ports)
     {
       if (port == device_port)
@@ -76,11 +98,12 @@ public:
       string timestamp_str = "o\n" + to_string(0) + "\n" + to_string(device_port) + "\n";
 
       send(sockfd, timestamp_str.c_str(), timestamp_str.size(), 0);
-      // Close the socket
+      // Close the socket 
       cout << "Release message sent to " << port << endl;
       close(sockfd);
     }
   }
+
   void startAccept(int current_process_index)
   {
 
@@ -94,14 +117,14 @@ public:
 
     char buffer[1024];
     bzero(buffer, 1024);
-    int n = recv(newsockfd, buffer, 1024, 0);
-    if (n < 0)
+    int a = recv(newsockfd, buffer, 1024, 0);
+    if (a < 0)
     {
       cerr << "ERROR reading from socket\n";
       exit(1);
     }
-    // emulate delay
-    usleep(500000);
+    
+    usleep(600000);
 
     int received_timestamp = -1;
     stringstream ss(buffer);
@@ -110,16 +133,26 @@ public:
     bool isReply = false, isReleased = false;
     while (getline(ss, temp, '\n'))
     {
-      if (!temp.empty() && temp[0] == 'r') // reply
+       if(!temp.empty() && temp[0] == 'r')  
+       { 
         isReply = true;
-      else if (!temp.empty() && temp[0] == 'o') // open
-        isReleased = true;
-      else if (!temp.empty() && temp[0] == 'q') // request
+       }
+      else if (!temp.empty() && temp[0] == 'o') 
+        {
+            isReleased = true;
+        }
+      else if (!temp.empty() && temp[0] == 'q') 
+       { 
         continue;
+       }
       else if (!temp.empty() && received_timestamp == -1)
+       { 
         received_timestamp = (stoi(temp));
+       }
       else if (!temp.empty())
-        port = stoi(temp);
+        {
+            port = stoi(temp);
+        }
     }
 
     // Compare the received timestamps with the current timestamps
@@ -154,8 +187,7 @@ public:
     {
       int current_timestamp = timestamp;
       timestamp = max(current_timestamp, received_timestamp) + 1;
-      // Create an event by incrementing the timestamp at the current index
-
+      
       cout << "Got a Request from " << port << endl;
       pq.push(pair<int, int>(received_timestamp, port));
       int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -177,7 +209,7 @@ public:
         cerr << "Error connecting to the server.\n";
         return;
       }
-
+     
       string timestamp_str = "r\n" + to_string(timestamp) + "\n" + to_string(port) + "\n";
 
       send(sockfd, timestamp_str.c_str(), timestamp_str.size(), 0);
@@ -206,11 +238,11 @@ public:
     threads.push_back(thread([this, index]()
                              {
       while (true) {
-        int option;
-        cout << "Enter 1 to request Critical Section, or \n2 to print current queue or \n3 to exit the code.\n";
+        int choice;
+        cout << "Enter 1 to request Critical Section, or \n2 to print the critical section requests or \n3 to exit .\n";
 
-        cin >> option;
-        if (option == 1) {
+        cin >> choice;
+        if (choice == 1) {
           timestamp++;
           pq.push(pair<int,int>(timestamp,device_port));
           
@@ -246,7 +278,7 @@ public:
           }
           
           
-        } else if (option == 2) {
+        } else if (choice == 2) {
           vector<pair<int,int>>temp;
           while(!pq.empty())
           {
@@ -256,12 +288,14 @@ public:
           }
           for(int i=0;i<temp.size();i++)
             pq.push(temp[i]);
-        } else if (option == 3) {
+        } else if (choice == 3) {
           
           exit(0);
         }
       } }));
   }
+
+
   void syncThreads()
   {
     for (auto &thread : threads)
@@ -272,28 +306,27 @@ public:
       }
     }
   }
+ 
+     bool EnterCritical_section()
+  {
+    if (no_of_replies == peer_ports.size() - 1 && pq.top().second == device_port)
+      return true;
+    return false;
+  }
 
-private:
-  int sockfd, newsockfd;
-  socklen_t clilen;
-  char buffer[256];
-  struct sockaddr_in serv_addr, cli_addr;
-  atomic<int> timestamp;
-  int current_process_index;
-  vector<thread> threads;
 };
 
 int main()
 {
  int no_of_devices ;
-cout << "Enter the no of devices ";
+cout << "Enter the no of devices : ";
 cin>>no_of_devices;
 if (no_of_devices< 2)
   {
     cerr << "Number of devices must be atleast 2 .\n";
     return 1;
   }
-  cout << "Please enter the port number on which this device will listen for incoming connections  ";
+  cout << "Please enter the port number on which this device will listen for incoming connections : ";
 
   cin >> device_port;
 
@@ -301,23 +334,18 @@ if (no_of_devices< 2)
   
   for (int i = 1; i < no_of_devices; ++i)
   {
-    cout << "Enter the port for peer device " << i  << ": ";
+    cout << "Enter the port for peer device : " << i  << ": ";
     int t;
     cin >> t;
     peer_ports.push_back(t);
   }
-
-  // Sort the vector
   sort(peer_ports.begin(), peer_ports.end());
-
-  // Find the index of the listening port
   int process_index = find(peer_ports.begin(), peer_ports.end(), device_port) -peer_ports.begin();
 
+
   Device d(device_port, no_of_devices-1, process_index);
-  d.beginListening();
-  d.triggerEvent();
-  d.syncThreads();
-  
+  d.start();
+ 
   return 0;
 
 }
