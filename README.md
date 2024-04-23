@@ -13,6 +13,8 @@
 1.After receiving a request, pushing the request in its own request queue (ordered by time stamps) and reply with a time stamp.
 2.After receiving release message, remove the corresponding request from its own request queue.
 
+**_Implemented Lamport's distributed mutual exclusion algorithm using C++. The program creates a network of devices where each device can request access to a critical section. Devices communicate through sockets and exchange messages to coordinate access to the critical section. The algorithm ensures mutual exclusion, progress, and fairness among devices competing for the critical section._**
+
 
 **_Compile the C++ code using_**
 
